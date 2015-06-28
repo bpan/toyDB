@@ -4,6 +4,7 @@ import com.google.common.base.Preconditions;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 public class Database {
   List<DBView> transactions = new ArrayList<>();
@@ -51,8 +52,21 @@ public class Database {
         if (transactions.size() == 1) {
           return "NO TRANSACTION";
         }
-        // todo bpan: update valueCount
         transactions.remove(currentTransaction);
+        // Update value counts
+        Set<String> transactionNames = currentTransaction.getAllNames();
+        for (String transactionName : transactionNames) {
+          Object revertedValue = currentTransaction.get(transactionName);
+          newValue = getValueInTransaction(transactionName);
+          if (!revertedValue.equals(newValue)) {
+            if (!(revertedValue instanceof Deletion)) {
+              valueCounts.decrementCount((String) revertedValue);
+            }
+            if (!newValue.equals("NULL")) {
+              valueCounts.incrementCount(newValue);
+            }
+          }
+        }
         return null;
       case COMMIT:
         // todo bpan

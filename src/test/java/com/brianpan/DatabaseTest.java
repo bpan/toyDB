@@ -93,4 +93,82 @@ public class DatabaseTest extends TestCase {
     assertThat(database.processInput(COUNT, "20"))
         .isEqualTo("1");
   }
+
+  public void testEmptyRollbackGivesErrorMessage() {
+    assertThat(database.processInput(ROLLBACK))
+        .isEqualTo("NO TRANSACTION");
+    database.processInput(BEGIN);
+    assertThat(database.processInput(ROLLBACK))
+        .isNull();
+    assertThat(database.processInput(ROLLBACK))
+        .isEqualTo("NO TRANSACTION");
+  }
+
+  public void testRollbackRevertsUpdate() {
+    database.processInput(SET, "a", "10");
+    database.processInput(BEGIN);
+    database.processInput(SET, "a", "20");
+    assertThat(database.processInput(GET, "a"))
+        .isEqualTo("20");
+    database.processInput(ROLLBACK);
+    assertThat(database.processInput(GET, "a"))
+        .isEqualTo("10");
+  }
+
+  public void testRollbackRevertsCounts() {
+    database.processInput(SET, "a", "10");
+    database.processInput(SET, "b", "100");
+    database.processInput(BEGIN);
+    database.processInput(SET, "a", "20");
+    database.processInput(DELETE, "b");
+    assertThat(database.processInput(COUNT, "10"))
+        .isEqualTo("0");
+    assertThat(database.processInput(COUNT, "20"))
+        .isEqualTo("1");
+    assertThat(database.processInput(COUNT, "100"))
+        .isEqualTo("0");
+    database.processInput(ROLLBACK);
+    assertThat(database.processInput(COUNT, "10"))
+        .isEqualTo("1");
+    assertThat(database.processInput(COUNT, "20"))
+        .isEqualTo("0");
+    assertThat(database.processInput(COUNT, "100"))
+        .isEqualTo("1");
+  }
+
+  public void testCommitSquashesAddsUpdatesAndDeletions() {
+    database.processInput(SET, "add in base", "10");
+    database.processInput(SET, "update later", "20");
+    database.processInput(SET, "delete later", "30");
+    database.processInput(BEGIN);
+    database.processInput(SET, "update later", "40");
+    database.processInput(SET, "add later", "50");
+    database.processInput(DELETE, "delete later");
+    database.processInput(BEGIN);
+    database.processInput(SET, "add in last transaction", "60");
+
+    assertThat(database.processInput(GET, "add in base"))
+        .isEqualTo("10");
+    assertThat(database.processInput(GET, "update later"))
+        .isEqualTo("40");
+    assertThat(database.processInput(GET, "delete later"))
+        .isEqualTo("NULL");
+    assertThat(database.processInput(GET, "add later"))
+        .isEqualTo("50");
+    assertThat(database.processInput(GET, "add in last transaction"))
+        .isEqualTo("60");
+
+    database.processInput(COMMIT);
+
+    assertThat(database.processInput(GET, "add in base"))
+        .isEqualTo("10");
+    assertThat(database.processInput(GET, "update later"))
+        .isEqualTo("40");
+    assertThat(database.processInput(GET, "delete later"))
+        .isEqualTo("NULL");
+    assertThat(database.processInput(GET, "add later"))
+        .isEqualTo("50");
+    assertThat(database.processInput(GET, "add in last transaction"))
+        .isEqualTo("60");
+  }
 }
