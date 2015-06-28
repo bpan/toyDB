@@ -1,174 +1,188 @@
 package com.brianpan;
 
-import junit.framework.TestCase;
+import org.junit.Before;
+import org.junit.Test;
 
-import static com.brianpan.DBCommand.*;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Fail.fail;
 
-public class DatabaseTest extends TestCase {
+public class DatabaseTest {
   Database database;
 
-  @Override
-  protected void setUp() throws Exception {
-    super.setUp();
+  @Before
+  public void setUp() throws Exception {
     database = new Database();
   }
 
-  public void testMultipleSet() throws Exception {
-    database.processInput(SET, "a", "10");
-    assertThat(database.processInput(GET, "a"))
+  @Test
+  public void multipleSet() throws Exception {
+    database.set("a", "10");
+    assertThat(database.get("a"))
         .isEqualTo("10");
-    database.processInput(SET, "a", "20");
-    assertThat(database.processInput(GET, "a"))
+    database.set("a", "20");
+    assertThat(database.get("a"))
         .isEqualTo("20");
   }
 
-  public void testSetThenDelete() throws Exception {
-    database.processInput(SET, "a", "10");
-    assertThat(database.processInput(GET, "a"))
+  @Test
+  public void setThenDelete() throws Exception {
+    database.set("a", "10");
+    assertThat(database.get("a"))
         .isEqualTo("10");
-    database.processInput(DELETE, "a");
-    assertThat(database.processInput(GET, "a"))
+    database.delete("a");
+    assertThat(database.get("a"))
         .isEqualTo("NULL");
   }
 
-  public void testSetInNewTransaction() throws Exception {
-    database.processInput(SET, "a", "10");
-    database.processInput(BEGIN);
-    assertThat(database.processInput(GET, "a"))
+  @Test
+  public void setInNewTransaction() throws Exception {
+    database.set("a", "10");
+    database.begin();
+    assertThat(database.get("a"))
         .isEqualTo("10");
-    database.processInput(SET, "a", "20");
-    assertThat(database.processInput(GET, "a"))
+    database.set("a", "20");
+    assertThat(database.get("a"))
         .isEqualTo("20");
   }
 
-  public void testDeleteInNewTransaction() throws Exception {
-    database.processInput(SET, "a", "10");
-    database.processInput(BEGIN);
-    assertThat(database.processInput(GET, "a"))
+  @Test
+  public void deleteInNewTransaction() throws Exception {
+    database.set("a", "10");
+    database.begin();
+    assertThat(database.get("a"))
         .isEqualTo("10");
-    database.processInput(DELETE, "a");
-    assertThat(database.processInput(GET, "a"))
+    database.delete("a");
+    assertThat(database.get("a"))
         .isEqualTo("NULL");
   }
 
-  public void testDeleteThenAddInNewTransaction() throws Exception {
-    database.processInput(SET, "a", "10");
-    database.processInput(DELETE, "a");
-    database.processInput(BEGIN);
-    assertThat(database.processInput(GET, "a"))
+  @Test
+  public void deleteThenAddInNewTransaction() throws Exception {
+    database.set("a", "10");
+    database.delete("a");
+    database.begin();
+    assertThat(database.get("a"))
         .isEqualTo("NULL");
-    database.processInput(SET, "a", "20");
-    assertThat(database.processInput(GET, "a"))
+    database.set("a", "20");
+    assertThat(database.get("a"))
         .isEqualTo("20");
   }
 
-  public void testCountMultipleValues() {
-    database.processInput(SET, "a", "10");
-    assertThat(database.processInput(COUNT, "10"))
+  @Test
+  public void countMultipleValues() {
+    database.set("a", "10");
+    assertThat(database.count("10"))
         .isEqualTo("1");
-    database.processInput(SET, "b", "10");
-    assertThat(database.processInput(COUNT, "10"))
+    database.set("b", "10");
+    assertThat(database.count("10"))
         .isEqualTo("2");
   }
 
-  public void testCountAfterDelete() {
-    database.processInput(SET, "a", "10");
-    assertThat(database.processInput(COUNT, "10"))
+  @Test
+  public void countAfterDelete() {
+    database.set("a", "10");
+    assertThat(database.count("10"))
         .isEqualTo("1");
-    database.processInput(DELETE, "a");
-    assertThat(database.processInput(COUNT, "10"))
+    database.delete("a");
+    assertThat(database.count("10"))
         .isEqualTo("0");
   }
 
-  public void testCountAfterUpdatingValues() {
-    database.processInput(SET, "a", "10");
-    assertThat(database.processInput(COUNT, "10"))
+  @Test
+  public void countAfterUpdatingValues() {
+    database.set("a", "10");
+    assertThat(database.count("10"))
         .isEqualTo("1");
-    assertThat(database.processInput(COUNT, "20"))
+    assertThat(database.count("20"))
         .isEqualTo("0");
-    database.processInput(SET, "a", "20");
-    assertThat(database.processInput(COUNT, "10"))
+    database.set("a", "20");
+    assertThat(database.count("10"))
         .isEqualTo("0");
-    assertThat(database.processInput(COUNT, "20"))
+    assertThat(database.count("20"))
         .isEqualTo("1");
   }
 
-  public void testEmptyRollbackGivesErrorMessage() {
-    assertThat(database.processInput(ROLLBACK))
-        .isEqualTo("NO TRANSACTION");
-    database.processInput(BEGIN);
-    assertThat(database.processInput(ROLLBACK))
-        .isNull();
-    assertThat(database.processInput(ROLLBACK))
-        .isEqualTo("NO TRANSACTION");
+  @Test(expected = Database.NoTransactionException.class)
+  public void rollbackWithoutTransactionThrows() {
+    database.rollback();
   }
 
-  public void testRollbackRevertsUpdate() {
-    database.processInput(SET, "a", "10");
-    database.processInput(BEGIN);
-    database.processInput(SET, "a", "20");
-    assertThat(database.processInput(GET, "a"))
+  @Test(expected = Database.NoTransactionException.class)
+  public void rollbackAllTransactionsPlusOneThrows() {
+    database.begin();
+    database.rollback();
+    database.rollback();
+  }
+
+  @Test
+  public void rollbackRevertsUpdate() {
+    database.set("a", "10");
+    database.begin();
+    database.set("a", "20");
+    assertThat(database.get("a"))
         .isEqualTo("20");
-    database.processInput(ROLLBACK);
-    assertThat(database.processInput(GET, "a"))
+    database.rollback();
+    assertThat(database.get("a"))
         .isEqualTo("10");
   }
 
-  public void testRollbackRevertsCounts() {
-    database.processInput(SET, "a", "10");
-    database.processInput(SET, "b", "100");
-    database.processInput(BEGIN);
-    database.processInput(SET, "a", "20");
-    database.processInput(DELETE, "b");
-    assertThat(database.processInput(COUNT, "10"))
+  @Test
+  public void rollbackRevertsCounts() {
+    database.set("a", "10");
+    database.set("b", "100");
+    database.begin();
+    database.set("a", "20");
+    database.delete("b");
+    assertThat(database.count("10"))
         .isEqualTo("0");
-    assertThat(database.processInput(COUNT, "20"))
+    assertThat(database.count("20"))
         .isEqualTo("1");
-    assertThat(database.processInput(COUNT, "100"))
+    assertThat(database.count("100"))
         .isEqualTo("0");
-    database.processInput(ROLLBACK);
-    assertThat(database.processInput(COUNT, "10"))
+    database.rollback();
+    assertThat(database.count("10"))
         .isEqualTo("1");
-    assertThat(database.processInput(COUNT, "20"))
+    assertThat(database.count("20"))
         .isEqualTo("0");
-    assertThat(database.processInput(COUNT, "100"))
+    assertThat(database.count("100"))
         .isEqualTo("1");
   }
 
-  public void testCommitSquashesAddsUpdatesAndDeletions() {
-    database.processInput(SET, "add in base", "10");
-    database.processInput(SET, "update later", "20");
-    database.processInput(SET, "delete later", "30");
-    database.processInput(BEGIN);
-    database.processInput(SET, "update later", "40");
-    database.processInput(SET, "add later", "50");
-    database.processInput(DELETE, "delete later");
-    database.processInput(BEGIN);
-    database.processInput(SET, "add in last transaction", "60");
+  @Test
+  public void commitSquashesAddsUpdatesAndDeletions() {
+    database.set("add in base", "10");
+    database.set("update later", "20");
+    database.set("delete later", "30");
+    database.begin();
+    database.set("update later", "40");
+    database.set("add later", "50");
+    database.delete("delete later");
+    database.begin();
+    database.set("add in last transaction", "60");
 
-    assertThat(database.processInput(GET, "add in base"))
+    assertThat(database.get("add in base"))
         .isEqualTo("10");
-    assertThat(database.processInput(GET, "update later"))
+    assertThat(database.get("update later"))
         .isEqualTo("40");
-    assertThat(database.processInput(GET, "delete later"))
+    assertThat(database.get("delete later"))
         .isEqualTo("NULL");
-    assertThat(database.processInput(GET, "add later"))
+    assertThat(database.get("add later"))
         .isEqualTo("50");
-    assertThat(database.processInput(GET, "add in last transaction"))
+    assertThat(database.get("add in last transaction"))
         .isEqualTo("60");
 
-    database.processInput(COMMIT);
+//    database.commit();
+    fail("Commit not implemented yet.");
 
-    assertThat(database.processInput(GET, "add in base"))
+    assertThat(database.get("add in base"))
         .isEqualTo("10");
-    assertThat(database.processInput(GET, "update later"))
+    assertThat(database.get("update later"))
         .isEqualTo("40");
-    assertThat(database.processInput(GET, "delete later"))
+    assertThat(database.get("delete later"))
         .isEqualTo("NULL");
-    assertThat(database.processInput(GET, "add later"))
+    assertThat(database.get("add later"))
         .isEqualTo("50");
-    assertThat(database.processInput(GET, "add in last transaction"))
+    assertThat(database.get("add in last transaction"))
         .isEqualTo("60");
   }
 }
