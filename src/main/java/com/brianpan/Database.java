@@ -17,39 +17,31 @@ public class Database {
    * SET - Add or update value
    */
   public void set(String name, String newValue) {
-    String oldValue = get(name);
-    if (!oldValue.equals("NULL")) {
-      valueCounts.decrementCount(oldValue);
+    Object oldValue = getValueOrNullValue(name);
+    if (!(oldValue instanceof NullValue)) {
+      valueCounts.decrementCount((String) oldValue);
     }
     valueCounts.incrementCount(newValue);
-    getCurrentTransaction().set(name, newValue);
+    currentTransaction().set(name, newValue);
   }
 
   /**
    * GET - Retrieve the value in the latest transaction
    */
   public String get(String name) {
-    for (int i = transactions.size() - 1; i >= 0; i--) {
-      DBView dbView = transactions.get(i);
-      Object value = dbView.get(name);
-      if (value instanceof Deletion) {
-        return "NULL";
-      } else if (null != value) {
-        return value.toString();
-      }
-    }
-    return "NULL";
+    Object value = getValueOrNullValue(name);
+    return value instanceof NullValue ? "NULL" : (String) value;
   }
 
   /**
    * DELETE - Remove any value associated with the passed name
    */
   public void delete(String name) {
-    String value = get(name);
-    if (!value.equals("NULL")) {
-      valueCounts.decrementCount(value);
+    Object value = getValueOrNullValue(name);
+    if (!(value instanceof NullValue)) {
+      valueCounts.decrementCount((String) value);
     }
-    getCurrentTransaction().set(name, new Deletion());
+    currentTransaction().set(name, new NullValue());
   }
 
   /**
@@ -73,28 +65,43 @@ public class Database {
     if (transactions.size() == 1) {
       throw new NoTransactionException();
     }
-    DBView revertedTransaction = getCurrentTransaction();
+    DBView revertedTransaction = currentTransaction();
     transactions.remove(revertedTransaction);
     // Update value counts
     Set<String> revertedNames = revertedTransaction.getAllNames();
     for (String revertedName : revertedNames) {
       Object revertedValue = revertedTransaction.get(revertedName);
-      String newValue = get(revertedName);
+      Object newValue = getValueOrNullValue(revertedName);
       if (!revertedValue.equals(newValue)) {
-        if (!(revertedValue instanceof Deletion)) {
+        if (!(revertedValue instanceof NullValue)) {
           valueCounts.decrementCount((String) revertedValue);
         }
-        if (!newValue.equals("NULL")) {
-          valueCounts.incrementCount(newValue);
+        if (!(newValue instanceof NullValue)) {
+          valueCounts.incrementCount((String) newValue);
         }
       }
     }
   }
 
-  private DBView getCurrentTransaction() {
+  private DBView currentTransaction() {
     return transactions.get(transactions.size() - 1);
   }
 
+  private Object getValueOrNullValue(String name) {
+    for (int i = transactions.size() - 1; i >= 0; i--) {
+      DBView dbView = transactions.get(i);
+      Object value = dbView.get(name);
+      if (null != value) {
+        return value;
+      }
+    }
+    return new NullValue();
+  }
+
+  private static class NullValue {
+  }
+
   public class NoTransactionException extends RuntimeException {
+
   }
 }
