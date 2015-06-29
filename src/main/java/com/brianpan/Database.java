@@ -83,6 +83,30 @@ public class Database {
     }
   }
 
+  /**
+   * COMMIT - Commits all outstanding transactions
+   */
+  public void commit() {
+    List<DBView> transactionsToCommit = transactions;
+    transactions = new ArrayList<>();
+    transactions.add(new DBView());
+    valueCounts = new DBValueCount();
+
+    for (DBView view : transactionsToCommit) {
+      Set<String> names = view.getAllNames();
+      for (String name : names) {
+        Object value = view.get(name);
+        if (value instanceof NullValue) {
+          delete(name);
+        } else {
+          set(name, (String) value);
+        }
+      }
+    }
+
+    // todo bpan: purge NullValue's
+  }
+
   private DBView currentTransaction() {
     return transactions.get(transactions.size() - 1);
   }
